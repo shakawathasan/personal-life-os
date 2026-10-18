@@ -11,10 +11,17 @@ import {
   AlertTriangle,
   HardDrive,
   Palette,
-  Cloud
+  Cloud,
+  Key,
+  ExternalLink,
+  Eye,
+  EyeOff,
+  Sparkles,
+  HelpCircle
 } from 'lucide-react';
 import { AppSettings } from '../types.ts';
 import { StorageService } from '../services/storage.ts';
+import { GeminiService } from '../services/geminiService.ts';
 import { ConfirmationModal } from './ConfirmationModal.tsx';
 
 interface AdminSettingsModuleProps {
@@ -36,9 +43,18 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [systemHealth, setSystemHealth] = useState<{ status: string; uptime: number; geminiConfigured: boolean } | null>(null);
 
+  // API & OAuth Keys state
+  const [geminiKey, setGeminiKey] = useState(() => StorageService.getGeminiApiKey());
+  const [googleClientId, setGoogleClientId] = useState(() => StorageService.getGoogleClientId());
+  const [showGeminiKey, setShowGeminiKey] = useState(false);
+  const [apiSaveSuccess, setApiSaveSuccess] = useState(false);
+  const [testAiLoading, setTestAiLoading] = useState(false);
+  const [testAiMessage, setTestAiMessage] = useState<{ success: boolean; text: string } | null>(null);
+
+  const currentHost = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+
   useEffect(() => {
     setFormData(settings);
-    // Fetch backend health
     fetch('/api/health')
       .then(res => res.json())
       .then(data => setSystemHealth(data))
@@ -51,6 +67,28 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
     onUpdateSettings(formData);
     setSaveSuccess(true);
     setTimeout(() => setSaveSuccess(false), 2000);
+  };
+
+  const handleSaveApiKeys = (e: React.FormEvent) => {
+    e.preventDefault();
+    StorageService.saveGeminiApiKey(geminiKey);
+    StorageService.saveGoogleClientId(googleClientId);
+    setApiSaveSuccess(true);
+    setTimeout(() => setApiSaveSuccess(false), 2500);
+  };
+
+  const handleTestGemini = async () => {
+    setTestAiLoading(true);
+    setTestAiMessage(null);
+    try {
+      StorageService.saveGeminiApiKey(geminiKey);
+      const res = await GeminiService.chat('Reply with strictly 5 words: "Gemini AI connection is working!"');
+      setTestAiMessage({ success: true, text: res });
+    } catch (err: any) {
+      setTestAiMessage({ success: false, text: err.message || 'Connection failed' });
+    } finally {
+      setTestAiLoading(false);
+    }
   };
 
   const handleExportBackup = () => {
@@ -91,7 +129,7 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
 
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#FAF8F3] dark:bg-[#111815]">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-4xl mx-auto space-y-6 pb-12">
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-[#E9E5DC] dark:border-[#263630]">
@@ -104,7 +142,7 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
                 Admin & Workspace Settings
               </h2>
               <p className="text-xs text-[#777970] dark:text-[#9AA096]">
-                Configure appearance, active modules, Google Drive cloud sync, and data backups
+                Configure AI intelligence, Google Drive cloud integration, appearance, and backups
               </p>
             </div>
           </div>
@@ -122,10 +160,13 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
             <Shield className="w-5 h-5 text-emerald-600" />
             <div>
               <p className="text-xs font-bold text-[#242823] dark:text-[#F1F3EE]">
-                System Health & Intelligence Status
+                Environment Status
               </p>
               <p className="text-[11px] text-[#777970] dark:text-[#9AA096]">
-                Backend: {systemHealth ? 'Online (Node.js Express)' : 'Local'} • Gemini AI: {systemHealth?.geminiConfigured ? 'Active (Ready)' : 'Simulated / Standby'}
+                Host: <span className="font-mono font-medium">{currentHost}</span> • Gemini AI:{' '}
+                <span className={geminiKey || systemHealth?.geminiConfigured ? 'text-emerald-600 font-semibold' : 'text-amber-600 font-semibold'}>
+                  {geminiKey ? 'Active (Client API Key)' : systemHealth?.geminiConfigured ? 'Active (Server)' : 'Key Required'}
+                </span>
               </p>
             </div>
           </div>
@@ -134,9 +175,130 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#23483F] dark:text-[#D6BD87] bg-[#FAF8F3] dark:bg-[#111815] border border-[#E9E5DC] dark:border-[#263630] rounded-xl hover:bg-stone-100"
           >
             <Cloud className="w-3.5 h-3.5" />
-            <span>Manage Google Drive</span>
+            <span>Google Drive Status</span>
           </button>
         </div>
+
+        {/* Cloud & AI API Configuration */}
+        <form onSubmit={handleSaveApiKeys} className="p-6 rounded-3xl bg-white dark:bg-[#18221E] border border-[#E9E5DC] dark:border-[#263630] shadow-soft space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Key className="w-4 h-4 text-[#23483F] dark:text-[#D6BD87]" />
+              <h3 className="font-editorial text-base font-bold text-[#242823] dark:text-[#F1F3EE]">
+                AI & Google Cloud Configuration
+              </h3>
+            </div>
+            {apiSaveSuccess && (
+              <span className="flex items-center gap-1 text-xs text-emerald-700 font-semibold bg-emerald-50 px-2.5 py-1 rounded-xl">
+                <CheckCircle2 className="w-3.5 h-3.5" /> API Keys Saved!
+              </span>
+            )}
+          </div>
+
+          {/* Gemini API Key */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-[#242823] dark:text-[#F1F3EE]">
+                Google Gemini API Key
+              </label>
+              <a
+                href="https://aistudio.google.com/app/apikey"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-[11px] text-[#23483F] dark:text-[#D6BD87] hover:underline font-semibold"
+              >
+                <span>Get Free Gemini Key (AI Studio)</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type={showGeminiKey ? 'text' : 'password'}
+                  placeholder="AIzaSy..."
+                  value={geminiKey}
+                  onChange={(e) => setGeminiKey(e.target.value)}
+                  className="w-full px-3.5 py-2 text-xs font-mono rounded-xl border border-[#E9E5DC] dark:border-[#263630] bg-[#FAF8F3] dark:bg-[#111815] text-[#242823] dark:text-[#F1F3EE]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowGeminiKey(!showGeminiKey)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#777970] hover:text-[#242823]"
+                >
+                  {showGeminiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+              <button
+                type="button"
+                onClick={handleTestGemini}
+                disabled={testAiLoading || !geminiKey.trim()}
+                className="px-3.5 py-2 text-xs font-semibold text-[#23483F] dark:text-[#D6BD87] bg-[#FAF8F3] dark:bg-[#111815] border border-[#E9E5DC] dark:border-[#263630] hover:bg-stone-100 rounded-xl disabled:opacity-50"
+              >
+                {testAiLoading ? 'Testing...' : 'Test AI'}
+              </button>
+            </div>
+            <p className="text-[11px] text-[#777970] dark:text-[#9AA096]">
+              Powers AI Academic Copilot, Cornell lecture summarization, legal case analysis, and practice quizzes. Stored securely in your browser.
+            </p>
+
+            {testAiMessage && (
+              <div
+                className={`p-2.5 rounded-xl text-xs flex items-center gap-2 ${
+                  testAiMessage.success
+                    ? 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300'
+                    : 'bg-red-50 text-red-800 dark:bg-red-950/30 dark:text-red-300'
+                }`}
+              >
+                {testAiMessage.success ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                <span>{testAiMessage.text}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Google OAuth Client ID for Google Drive */}
+          <div className="space-y-2 pt-2 border-t border-[#E9E5DC]/60 dark:border-[#263630]/60">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-[#242823] dark:text-[#F1F3EE]">
+                Google Cloud OAuth 2.0 Client ID (Optional for Custom Google Drive)
+              </label>
+              <a
+                href="https://console.cloud.google.com/apis/credentials"
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1 text-[11px] text-[#23483F] dark:text-[#D6BD87] hover:underline font-semibold"
+              >
+                <span>Google Cloud Console</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <input
+              type="text"
+              placeholder="e.g. 1234567890-xxx.apps.googleusercontent.com"
+              value={googleClientId}
+              onChange={(e) => setGoogleClientId(e.target.value)}
+              className="w-full px-3.5 py-2 text-xs font-mono rounded-xl border border-[#E9E5DC] dark:border-[#263630] bg-[#FAF8F3] dark:bg-[#111815] text-[#242823] dark:text-[#F1F3EE]"
+            />
+            <div className="p-3 rounded-xl bg-stone-50 dark:bg-[#111815] border border-[#E9E5DC] dark:border-[#263630] text-[11px] text-[#777970] dark:text-[#9AA096] space-y-1">
+              <p>
+                <strong>Domain Authorization:</strong> To connect Google Drive on your live domain:
+              </p>
+              <ul className="list-disc list-inside space-y-0.5 pl-1">
+                <li>Create an <em>OAuth Client ID (Web Application)</em> in Google Cloud Console.</li>
+                <li>Add <code className="bg-white dark:bg-[#18221E] px-1 py-0.5 rounded border border-[#E9E5DC] dark:border-[#263630]">https://{currentHost}</code> under <strong>Authorized JavaScript origins</strong>.</li>
+                <li>Paste the Client ID here to enable direct Google Drive sign-in without Firebase domain restrictions.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-1">
+            <button
+              type="submit"
+              className="px-5 py-2 text-xs font-semibold text-white bg-[#23483F] hover:bg-[#1C3932] dark:bg-[#3C7265] rounded-xl shadow-xs"
+            >
+              Save API & Cloud Keys
+            </button>
+          </div>
+        </form>
 
         {/* Customization Form */}
         <form onSubmit={handleSaveSettings} className="p-6 rounded-3xl bg-white dark:bg-[#18221E] border border-[#E9E5DC] dark:border-[#263630] shadow-soft space-y-6">
@@ -238,15 +400,6 @@ export const AdminSettingsModule: React.FC<AdminSettingsModuleProps> = ({
               <Download className="w-3.5 h-3.5" />
               <span>Export Workspace Data (JSON)</span>
             </button>
-
-            <a
-              href="/personal-life-os.tar.gz"
-              download="personal-life-os.tar.gz"
-              className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-[#23483F] dark:text-[#D6BD87] bg-white dark:bg-[#18221E] border border-[#E9E5DC] dark:border-[#263630] rounded-xl hover:bg-stone-50 shadow-xs"
-            >
-              <Download className="w-3.5 h-3.5" />
-              <span>Download Project Code (.tar.gz)</span>
-            </a>
 
             <label className="flex items-center gap-2 px-4 py-2 text-xs font-semibold text-[#242823] dark:text-[#F1F3EE] bg-[#FAF8F3] dark:bg-[#111815] border border-[#E9E5DC] dark:border-[#263630] rounded-xl hover:bg-stone-100 cursor-pointer">
               <Upload className="w-3.5 h-3.5" />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Send,
@@ -9,7 +9,11 @@ import {
   HelpCircle,
   BrainCircuit,
   Scale,
-  GraduationCap
+  GraduationCap,
+  Key,
+  ExternalLink,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import { GeminiService, ChatMessage } from '../services/geminiService.ts';
 import { StorageService } from '../services/storage.ts';
@@ -25,6 +29,25 @@ export const AIWorkspaceModule: React.FC<AIWorkspaceModuleProps> = ({ onNavigate
   const [isLoading, setIsLoading] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [savedIndex, setSavedIndex] = useState<number | null>(null);
+  const [hasApiKey, setHasApiKey] = useState(() => !!StorageService.getGeminiApiKey());
+  const [showKeyModal, setShowKeyModal] = useState(false);
+  const [keyInput, setKeyInput] = useState(() => StorageService.getGeminiApiKey());
+  const [keySavedMessage, setKeySavedMessage] = useState(false);
+
+  useEffect(() => {
+    setHasApiKey(!!StorageService.getGeminiApiKey());
+  }, []);
+
+  const handleSaveKey = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    StorageService.saveGeminiApiKey(keyInput);
+    setHasApiKey(!!keyInput.trim());
+    setKeySavedMessage(true);
+    setTimeout(() => {
+      setKeySavedMessage(false);
+      setShowKeyModal(false);
+    }, 1200);
+  };
 
   const quickPrompts = [
     {
@@ -53,6 +76,11 @@ export const AIWorkspaceModule: React.FC<AIWorkspaceModuleProps> = ({ onNavigate
     const text = (textToSend || inputPrompt).trim();
     if (!text || isLoading) return;
 
+    if (!StorageService.getGeminiApiKey()) {
+      setShowKeyModal(true);
+      return;
+    }
+
     const userMsg: ChatMessage = { role: 'user', content: text };
     const newHistory = [...messages, userMsg];
     setMessages(newHistory);
@@ -67,7 +95,7 @@ export const AIWorkspaceModule: React.FC<AIWorkspaceModuleProps> = ({ onNavigate
         ...newHistory,
         {
           role: 'assistant',
-          content: 'Sorry, I encountered an issue connecting to Gemini: ' + (err.message || 'Service unavailable'),
+          content: 'Error connecting to Gemini: ' + (err.message || 'Service unavailable'),
         },
       ]);
     } finally {
@@ -120,20 +148,54 @@ export const AIWorkspaceModule: React.FC<AIWorkspaceModuleProps> = ({ onNavigate
               AI Academic Copilot
             </h2>
             <p className="text-xs text-[#777970] dark:text-[#9AA096]">
-              Powered by Gemini 2.5 Flash • Contextual academic intelligence
+              Powered by Google Gemini • Direct in-browser intelligence
             </p>
           </div>
         </div>
 
-        {messages.length > 0 && (
+        <div className="flex items-center gap-3">
+          {/* API Key Status Pill */}
           <button
-            onClick={() => setMessages([])}
-            className="text-xs text-[#777970] hover:text-[#242823] dark:text-[#9AA096] dark:hover:text-white"
+            onClick={() => setShowKeyModal(true)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+              hasApiKey
+                ? 'bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800'
+                : 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800 animate-pulse'
+            }`}
+            title="Configure Gemini API Key"
           >
-            Clear Conversation
+            <Key className="w-3.5 h-3.5" />
+            <span>{hasApiKey ? 'Gemini Key Configured' : 'Set Gemini Key'}</span>
           </button>
-        )}
+
+          {messages.length > 0 && (
+            <button
+              onClick={() => setMessages([])}
+              className="text-xs text-[#777970] hover:text-[#242823] dark:text-[#9AA096] dark:hover:text-white"
+            >
+              Clear Conversation
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Missing Key Notification Banner */}
+      {!hasApiKey && (
+        <div className="bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900/50 px-4 py-2.5 sm:px-6 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Gemini API Key Needed:</strong> Enter your free Gemini API key to activate AI chat, voice transcription summaries, and quiz flashcards on your live site.
+            </span>
+          </div>
+          <button
+            onClick={() => setShowKeyModal(true)}
+            className="px-3 py-1 rounded-lg font-semibold bg-amber-600 hover:bg-amber-700 text-white shrink-0 shadow-xs"
+          >
+            Enter Key
+          </button>
+        </div>
+      )}
 
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 max-w-4xl mx-auto w-full">
@@ -233,7 +295,11 @@ export const AIWorkspaceModule: React.FC<AIWorkspaceModuleProps> = ({ onNavigate
         >
           <input
             type="text"
-            placeholder="Ask questions about lecture notes, legal precedents, or study concepts..."
+            placeholder={
+              hasApiKey
+                ? "Ask questions about lecture notes, legal precedents, or study concepts..."
+                : "Enter your Gemini API key above or here to chat..."
+            }
             value={inputPrompt}
             onChange={(e) => setInputPrompt(e.target.value)}
             disabled={isLoading}
@@ -248,6 +314,82 @@ export const AIWorkspaceModule: React.FC<AIWorkspaceModuleProps> = ({ onNavigate
           </button>
         </form>
       </div>
+
+      {/* Gemini API Key Configuration Modal */}
+      {showKeyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
+          <div className="w-full max-w-md bg-white dark:bg-[#18221E] rounded-3xl border border-[#E9E5DC] dark:border-[#263630] shadow-elevated p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-[#23483F] dark:text-[#D6BD87]" />
+                <h3 className="font-editorial text-lg font-bold text-[#242823] dark:text-[#F1F3EE]">
+                  Gemini API Configuration
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowKeyModal(false)}
+                className="p-1 rounded-lg text-[#777970] hover:text-[#242823] dark:text-[#9AA096] dark:hover:text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-[#777970] dark:text-[#9AA096] leading-relaxed">
+              Your Gemini API key connects this workspace directly to Google Gemini AI in your browser. Your key is kept private and securely stored only inside your browser's local storage.
+            </p>
+
+            <form onSubmit={handleSaveKey} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#242823] dark:text-[#F1F3EE] mb-1.5">
+                  Gemini API Key
+                </label>
+                <input
+                  type="password"
+                  placeholder="AIzaSy..."
+                  value={keyInput}
+                  onChange={(e) => setKeyInput(e.target.value)}
+                  className="w-full px-3.5 py-2.5 text-xs font-mono rounded-xl border border-[#E9E5DC] dark:border-[#263630] bg-[#FAF8F3] dark:bg-[#111815] text-[#242823] dark:text-[#F1F3EE] focus:outline-hidden focus:border-[#23483F] dark:focus:border-[#3C7265]"
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-[11px]">
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-[#23483F] dark:text-[#D6BD87] hover:underline font-semibold"
+                >
+                  <span>Get Free Key (Google AI Studio)</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+
+                {keySavedMessage && (
+                  <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                    <Check className="w-3.5 h-3.5" /> Key Saved!
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowKeyModal(false)}
+                  className="px-4 py-2 text-xs font-semibold text-[#777970] hover:text-[#242823] dark:text-[#9AA096] dark:hover:text-white rounded-xl"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 text-xs font-semibold text-white bg-[#23483F] hover:bg-[#1C3932] dark:bg-[#3C7265] rounded-xl shadow-xs"
+                >
+                  Save API Key
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

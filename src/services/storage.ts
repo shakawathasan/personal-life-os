@@ -81,6 +81,71 @@ export const StorageService = {
   getSettings: (): AppSettings => getItem<AppSettings>('settings', defaultSettings),
   saveSettings: (settings: AppSettings) => setItem('settings', settings),
 
+  // Gemini API Key
+  getGeminiApiKey: (): string => {
+    try {
+      return localStorage.getItem(PREFIX + 'gemini_api_key') || '';
+    } catch {
+      return '';
+    }
+  },
+  saveGeminiApiKey: (key: string): void => {
+    try {
+      localStorage.setItem(PREFIX + 'gemini_api_key', key.trim());
+    } catch (e) {
+      console.error('Failed to save Gemini API key:', e);
+    }
+  },
+
+  // Google OAuth & Firebase Config
+  getGoogleClientId: (): string => {
+    try {
+      return localStorage.getItem(PREFIX + 'google_client_id') || '';
+    } catch {
+      return '';
+    }
+  },
+  saveGoogleClientId: (id: string): void => {
+    try {
+      localStorage.setItem(PREFIX + 'google_client_id', id.trim());
+    } catch (e) {
+      console.error('Failed to save Google Client ID:', e);
+    }
+  },
+
+  getCustomFirebaseConfig: (): any => {
+    return getItem<any>('custom_firebase_config', null);
+  },
+  saveCustomFirebaseConfig: (config: any): void => {
+    setItem('custom_firebase_config', config);
+  },
+
+  getGoogleAccessToken: (): string | null => {
+    try {
+      return localStorage.getItem(PREFIX + 'google_access_token');
+    } catch {
+      return null;
+    }
+  },
+  saveGoogleAccessToken: (token: string | null): void => {
+    try {
+      if (token) {
+        localStorage.setItem(PREFIX + 'google_access_token', token);
+      } else {
+        localStorage.removeItem(PREFIX + 'google_access_token');
+      }
+    } catch (e) {
+      console.error('Failed to save Google Access Token:', e);
+    }
+  },
+
+  getGoogleUser: (): any => {
+    return getItem<any>('google_user', null);
+  },
+  saveGoogleUser: (user: any): void => {
+    setItem('google_user', user);
+  },
+
   // Notebooks
   getNotebooks: (): Notebook[] => getItem<Notebook[]>('notebooks', []),
   saveNotebooks: (items: Notebook[]) => setItem('notebooks', items),

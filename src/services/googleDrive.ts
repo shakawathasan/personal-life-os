@@ -7,14 +7,23 @@ import {
   signOut,
   User,
 } from 'firebase/auth';
-import firebaseConfig from '../../firebase-applet-config.json';
+import defaultFirebaseConfig from '../../firebase-applet-config.json';
+import { StorageService } from './storage.ts';
 import { Page } from '../types.ts';
+
+// Get effective Firebase config
+function getActiveFirebaseConfig() {
+  const custom = StorageService.getCustomFirebaseConfig();
+  if (custom && custom.apiKey) return custom;
+  return defaultFirebaseConfig;
+}
 
 // Initialize Firebase App singleton with safe fallback
 let app: any = null;
 let auth: any = null;
 try {
-  app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  const cfg = getActiveFirebaseConfig();
+  app = getApps().length === 0 ? initializeApp(cfg) : getApp();
   auth = getAuth(app);
 } catch (err) {
   console.warn('Firebase init deferred or offline:', err);
@@ -25,49 +34,149 @@ const provider = new GoogleAuthProvider();
 provider.addScope('https://www.googleapis.com/auth/drive.file');
 
 let isSigningIn = false;
-let cachedAccessToken: string | null = null;
+let cachedAccessToken: string | null = StorageService.getGoogleAccessToken();
 
-// Initialize auth state listener
+// Initialize auth state listener with local persistence
 export const initAuth = (
-  onAuthSuccess?: (user: User, token: string) => void,
+  onAuthSuccess?: (user: any, token: string) => void,
   onAuthFailure?: () => void
 ) => {
+  // Check if we already have a saved session in localStorage
+  const storedToken = StorageService.getGoogleAccessToken();
+  const storedUser = StorageService.getGoogleUser();
+  if (storedToken && storedUser) {
+    cachedAccessToken = storedToken;
+    if (onAuthSuccess) onAuthSuccess(storedUser, storedToken);
+  }
+
   if (!auth) {
-    if (onAuthFailure) onAuthFailure();
+    if (!storedToken && onAuthFailure) onAuthFailure();
     return () => {};
   }
+
   return onAuthStateChanged(auth, async (user: User | null) => {
     if (user) {
-      if (cachedAccessToken) {
-        if (onAuthSuccess) onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        cachedAccessToken = null;
-        if (onAuthFailure) onAuthFailure();
+      const token = cachedAccessToken || StorageService.getGoogleAccessToken();
+      if (token) {
+        if (onAuthSuccess) onAuthSuccess(user, token);
       }
-    } else {
+    } else if (!StorageService.getGoogleAccessToken() && !isSigningIn) {
       cachedAccessToken = null;
       if (onAuthFailure) onAuthFailure();
     }
   });
 };
 
-// Google Sign-in flow
-export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
-  if (!auth) {
-    throw new Error('Google Auth is not initialized in this environment.');
+// Direct Google Identity Services (GIS) Sign-In
+export const gisSignIn = (clientId: string): Promise<{ user: any; accessToken: string }> => {
+  return new Promise((resolve, reject) => {
+    const googleObj = (window as any).google;
+    if (!googleObj || !googleObj.accounts?.oauth2) {
+      return reject(
+        new Error('Google Identity Services library is still loading. Please check your internet connection and try again.')
+      );
+    }
+
+    try {
+      const tokenClient = googleObj.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email',
+        callback: async (tokenResponse: any) => {
+          if (tokenResponse.error) {
+            return reject(new Error(tokenResponse.error_description || tokenResponse.error));
+          }
+          const token = tokenResponse.access_token;
+          cachedAccessToken = token;
+          StorageService.saveGoogleAccessToken(token);
+
+          // Fetch user profile from Google userinfo API
+          try {
+            const profileRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            const profile = await profileRes.json();
+            const userObj = {
+              displayName: profile.name || profile.email,
+              email: profile.email,
+              photoURL: profile.picture,
+              uid: profile.sub,
+            };
+            StorageService.saveGoogleUser(userObj);
+            resolve({ user: userObj, accessToken: token });
+          } catch {
+            const fallbackUser = { displayName: 'Google User', email: '', uid: 'gis-user' };
+            StorageService.saveGoogleUser(fallbackUser);
+            resolve({ user: fallbackUser, accessToken: token });
+          }
+        },
+      });
+
+      tokenClient.requestAccessToken({ prompt: 'consent' });
+    } catch (err: any) {
+      reject(err);
+    }
+  });
+};
+
+// Google Sign-in flow supporting both Firebase and GIS
+export const googleSignIn = async (customClientId?: string): Promise<{ user: any; accessToken: string } | null> => {
+  const clientId =
+    customClientId ||
+    StorageService.getGoogleClientId() ||
+    (getActiveFirebaseConfig() as any).oAuthClientId;
+
+  // If user provided a specific Google Client ID, use Google Identity Services
+  if (customClientId || StorageService.getGoogleClientId()) {
+    return await gisSignIn(clientId);
   }
+
+  if (!auth) {
+    if (clientId) {
+      return await gisSignIn(clientId);
+    }
+    throw new Error('Google Authentication is not configured. Please enter your Google Client ID in Settings.');
+  }
+
   try {
     isSigningIn = true;
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Google sign-in.');
+      throw new Error('Failed to retrieve access token from Google sign-in.');
     }
 
     cachedAccessToken = credential.accessToken;
+    StorageService.saveGoogleAccessToken(cachedAccessToken);
+    const u = {
+      displayName: result.user.displayName,
+      email: result.user.email,
+      photoURL: result.user.photoURL,
+      uid: result.user.uid,
+    };
+    StorageService.saveGoogleUser(u);
     return { user: result.user, accessToken: cachedAccessToken };
   } catch (error: any) {
     console.error('Google Sign In Error:', error);
+    if (error.code === 'auth/unauthorized-domain') {
+      const currentHost = window.location.hostname;
+      // Try GIS fallback if clientId is available
+      if (clientId && (window as any).google?.accounts?.oauth2) {
+        try {
+          return await gisSignIn(clientId);
+        } catch (gisErr) {
+          console.error('GIS fallback error:', gisErr);
+        }
+      }
+      throw new Error(
+        `Domain "${currentHost}" is not authorized for this Firebase project. To fix: add "${currentHost}" in Firebase Console > Authentication > Settings > Authorized domains, OR enter your own Google Client ID in Settings.`
+      );
+    }
+    if (error.code === 'auth/popup-blocked') {
+      throw new Error('Sign-in popup was blocked by your browser. Please allow popups for this site and try again.');
+    }
+    if (error.code === 'auth/popup-closed-by-user') {
+      throw new Error('Sign-in popup was closed before completing authentication.');
+    }
     throw error;
   } finally {
     isSigningIn = false;
@@ -75,12 +184,24 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
 };
 
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  if (cachedAccessToken) return cachedAccessToken;
+  const stored = StorageService.getGoogleAccessToken();
+  if (stored) {
+    cachedAccessToken = stored;
+    return stored;
+  }
+  return null;
 };
 
 export const logout = async () => {
-  await signOut(auth);
+  if (auth) {
+    try {
+      await signOut(auth);
+    } catch {}
+  }
   cachedAccessToken = null;
+  StorageService.saveGoogleAccessToken(null);
+  StorageService.saveGoogleUser(null);
 };
 
 // Google Drive API Helpers
@@ -152,7 +273,6 @@ export const syncNoteToDrive = async (accessToken: string, page: Page): Promise<
   const folderId = await findOrCreateAppFolder(accessToken);
   const fileName = `${page.title ? page.title.replace(/[/\\?%*:|"<>]/g, '-') : 'Untitled'}.md`;
   
-  // Format note with metadata header and content
   const markdownBody = `---
 title: "${page.title}"
 type: "${page.type}"
@@ -263,7 +383,7 @@ export const downloadDriveFile = async (accessToken: string, fileId: string): Pr
   return await res.text();
 };
 
-// Delete file from Google Drive (MUST be accompanied by user confirmation UI in the caller!)
+// Delete file from Google Drive
 export const deleteDriveFile = async (accessToken: string, fileId: string): Promise<void> => {
   const res = await fetch(`${DRIVE_API_URL}/files/${fileId}`, {
     method: 'DELETE',
