@@ -34,8 +34,8 @@ async function callGeminiDirect(
     };
   }
 
-  // Model cascade: try gemini-2.5-flash, then fallback to gemini-1.5-flash or gemini-2.0-flash
-  const models = ['gemini-2.5-flash', 'gemini-1.5-flash', 'gemini-2.0-flash'];
+  // Model cascade: try gemini-3.8-flash first, then fallback to gemini-2.5-flash or gemini-1.5-flash
+  const models = ['gemini-3.8-flash', 'gemini-2.5-flash', 'gemini-1.5-flash'];
   let lastError: any = null;
 
   for (const model of models) {
