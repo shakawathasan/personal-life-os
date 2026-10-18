@@ -1,0 +1,16 @@
+{
+  "name": "Personal Life OS",
+  "short_name": "Life OS",
+  "description": "All-in-One Personal Workspace with University Notebook, Google Drive, AI Tools, and Aesthetic Glassmorphism UI",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FAF8F3",
+  "theme_color": "#23483F",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}

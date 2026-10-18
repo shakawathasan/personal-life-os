@@ -1,0 +1,142 @@
+@import "tailwindcss";
+
+:root {
+  --background: #FAF8F3;
+  --surface: #FFFFFF;
+  --surface-raised: rgba(255, 255, 255, 0.85);
+  --primary: #23483F;
+  --primary-hover: #1C3932;
+  --primary-light: rgba(35, 72, 63, 0.08);
+  --secondary: #A8B8A0;
+  --secondary-light: rgba(168, 184, 160, 0.2);
+  --accent: #D6BD87;
+  --accent-light: rgba(214, 189, 135, 0.2);
+  --text: #242823;
+  --muted: #777970;
+  --border: #E9E5DC;
+  --border-focus: #23483F;
+  --danger: #D32F2F;
+  --success: #2E7D32;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --shadow-soft: 0 10px 30px rgba(35, 72, 63, 0.05);
+  --shadow-card: 0 4px 20px rgba(35, 72, 63, 0.04);
+  --shadow-elevated: 0 18px 45px rgba(35, 72, 63, 0.1);
+  --transition-fast: 160ms ease;
+}
+
+.dark {
+  --background: #111815;
+  --surface: #18221E;
+  --surface-raised: rgba(24, 34, 30, 0.85);
+  --primary: #3C7265;
+  --primary-hover: #488677;
+  --primary-light: rgba(60, 114, 101, 0.2);
+  --secondary: #8FA287;
+  --secondary-light: rgba(143, 162, 135, 0.15);
+  --accent: #E2CA98;
+  --accent-light: rgba(226, 202, 152, 0.15);
+  --text: #F1F3EE;
+  --muted: #9AA096;
+  --border: #263630;
+  --border-focus: #3C7265;
+  --danger: #EF5350;
+  --success: #4CAF50;
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.25);
+  --shadow-elevated: 0 18px 45px rgba(0, 0, 0, 0.45);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+.font-editorial {
+  font-family: 'Playfair Display', Georgia, serif;
+}
+
+.font-bangla {
+  font-family: 'Noto Sans Bengali', 'Inter', sans-serif;
+}
+
+/* Glassmorphism Design System */
+.glass-panel {
+  background: var(--surface-raised);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-soft);
+}
+
+.glass-toolbar {
+  background: rgba(255, 255, 255, 0.92);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+.dark .glass-toolbar {
+  background: rgba(24, 34, 30, 0.92);
+}
+
+.glass-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-fast);
+}
+
+.glass-card:hover {
+  box-shadow: var(--shadow-elevated);
+  border-color: rgba(35, 72, 63, 0.25);
+}
+.dark .glass-card:hover {
+  border-color: rgba(143, 162, 135, 0.3);
+}
+
+/* Fallback for browsers not supporting backdrop-filter */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-panel, .glass-toolbar {
+    background: var(--surface);
+  }
+}
+
+/* Clean Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--secondary);
+}
+
+/* Print Friendly Notebook Styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}

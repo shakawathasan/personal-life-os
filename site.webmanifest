@@ -1,0 +1,15 @@
+{
+  "name": "Personal Life OS",
+  "short_name": "LifeOS",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#23483F",
+  "theme_color": "#23483F",
+  "icons": [
+    {
+      "src": "favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png"
+    }
+  ]
+}
